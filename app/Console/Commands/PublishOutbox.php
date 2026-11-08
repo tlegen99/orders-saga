@@ -23,6 +23,10 @@ class PublishOutbox extends Command
         do {
             $sent = $this->publishBatch($bus);
 
+            if ($sent > 0 || $this->option('once')) {
+                $this->info("Отправлено: {$sent}");
+            }
+
             if ($sent === 0 && ! $this->option('once')) {
                 usleep(500_000);
             }

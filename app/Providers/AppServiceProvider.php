@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Messaging\LogMessageBus;
 use App\Messaging\MessageBus;
+use App\Messaging\NatsMessageBus;
+use Basis\Nats\Client;
+use Basis\Nats\Configuration;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -17,7 +20,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(MessageBus::class, LogMessageBus::class);
+        $this->app->singleton(Client::class, function () {
+            return new Client(new Configuration([
+                'host' => config('services.nats.host'),
+                'port' => config('services.nats.port'),
+                'timeout' => 2,
+            ]));
+        });
+
+        $this->app->singleton(MessageBus::class, NatsMessageBus::class);
     }
 
     /**
