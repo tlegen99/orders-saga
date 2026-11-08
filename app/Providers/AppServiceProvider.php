@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Messaging\LogMessageBus;
 use App\Messaging\MessageBus;
 use App\Messaging\NatsMessageBus;
+use App\Payments\FakePaymentGateway;
+use App\Payments\PaymentGateway;
 use Basis\Nats\Client;
 use Basis\Nats\Configuration;
 use Carbon\CarbonImmutable;
@@ -29,6 +31,8 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(MessageBus::class, NatsMessageBus::class);
+
+        $this->app->bind(PaymentGateway::class, FakePaymentGateway::class);
     }
 
     /**

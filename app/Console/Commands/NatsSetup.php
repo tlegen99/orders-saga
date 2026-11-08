@@ -29,23 +29,25 @@ class NatsSetup extends Command
 
         // проверяем не создан ли стрим
         if ($stream->exists()) {
-            $this->warn('Стрим [SAGA] уже существует. Пропускаем создание.');
+            $this->warn('Стрим [SAGA] уже существует.');
+        } else {
+            $this->info('Стрим [SAGA] не найден. Начинаем настройку...');
 
-            return Command::SUCCESS;
+            // обрабатываем только такие Subjects
+            $stream->getConfiguration()->setSubjects([
+                'payments.*',
+                'orders.*',
+            ]);
+
+            // запрос на создание
+            $stream->create();
+
+            $this->info('Стрим [SAGA] успешно создан с subjects: payments.*, orders.*');
         }
 
-        $this->info('Стрим [SAGA] не найден. Начинаем настройку...');
-
-        // обрабатываем только такие Subjects
-        $stream->getConfiguration()->setSubjects([
-            'payments.*',
-            'orders.*',
-        ]);
-
-        // запрос на создание
-        $stream->create();
-
-        $this->info('Стрим [SAGA] успешно создан с subjects: payments.*, orders.*');
+        $consumer = $stream->getConsumer('payments');
+        $consumer->getConfiguration()->setSubjectFilter('payments.charge');
+        $consumer->create();
 
         return Command::SUCCESS;
     }
