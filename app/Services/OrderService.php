@@ -13,6 +13,8 @@ use Illuminate\Support\Str;
 
 class OrderService
 {
+    public function __construct(private Outbox $outbox) {}
+
     public function create(CreateOrderData $data): Order
     {
         return DB::transaction(function () use ($data) {
@@ -59,12 +61,17 @@ class OrderService
             // создаем заказ
             $order = Order::create([
                 'uuid' => (string) Str::uuid(),
-                'status' => OrderStatus::PENDING,
+                'status' => OrderStatus::PAYMENT_PENDING,
                 'amount' => $totalAmount,
             ]);
 
             // масс создание позиций
             $order->items()->createMany($itemsToCreate);
+
+            $this->outbox->record('payments.charge', 'ChargePayment', $order->uuid, [
+                'order_uuid' => $order->uuid,
+                'amount' => $order->amount,
+            ]);
 
             return $order->load('items');
         });

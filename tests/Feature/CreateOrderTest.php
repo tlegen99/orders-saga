@@ -13,7 +13,7 @@ it('создает заказ: возвращает 201, уменьшает stoc
 
     $this->postJson('/api/orders', $body, ['Idempotency-Key' => 'k1'])
         ->assertCreated()
-        ->assertJsonPath('data.status', 'pending')
+        ->assertJsonPath('data.status', 'payment_pending')
         ->assertJsonPath('data.amount', 2000) // 1000 * 2, цена из базы
         ->assertJsonPath('data.items.0.price', 1000); // снимок цены
 
@@ -70,6 +70,8 @@ it('без Idempotency-Key возвращает 400', function () {
     expect(Order::count())->toBe(0);
 });
 
+// резерв нескольких товаров атомарен. Если любой из них не прошёл проверку,
+// транзакция откатывается целиком, и в базе не остаётся частичного состояния
 it('при нехватке товара возвращает 422 и не меняет stock ни одного товара', function () {
     $body = ['items' => [
         ['product_id' => $this->keyboard->id, 'quantity' => 1], // этого хватает
