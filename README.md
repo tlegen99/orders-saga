@@ -17,6 +17,7 @@
 ## Как проходит заказ
 
 ```mermaid
+%%{init: {'sequence': {'mirrorActors': false}}}%%
 sequenceDiagram
     participant C as Клиент
     participant O as Orders (API)
