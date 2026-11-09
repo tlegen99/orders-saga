@@ -45,8 +45,14 @@ class NatsSetup extends Command
             $this->info('Стрим [SAGA] успешно создан с subjects: payments.*, orders.*');
         }
 
+        // настройка консьюмера payments
         $consumer = $stream->getConsumer('payments');
         $consumer->getConfiguration()->setSubjectFilter('payments.charge');
+        $consumer->create();
+
+        // настройка консьюмера orders
+        $consumer = $stream->getConsumer('orders');
+        $consumer->getConfiguration()->setSubjectFilter('orders.*');
         $consumer->create();
 
         return Command::SUCCESS;
