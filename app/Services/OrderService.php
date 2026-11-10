@@ -11,7 +11,7 @@ use App\Models\Product;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-class OrderService
+final readonly class OrderService
 {
     public function __construct(private Outbox $outbox) {}
 

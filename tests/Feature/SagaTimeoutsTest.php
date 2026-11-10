@@ -9,6 +9,8 @@ use App\Orders\OrderSagaHandler;
 use Illuminate\Support\Str;
 
 beforeEach(function () {
+    config(['saga.payment_timeout_minutes' => 5]);
+
     // подготовка: товар со stock = 8 (изначально было 10, 2 уже зарезервировали)
     $this->product = Product::factory()->create([
         'stock' => 8,

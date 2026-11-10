@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Messaging\LogMessageBus;
 use App\Messaging\MessageBus;
 use App\Messaging\NatsMessageBus;
 use App\Payments\FakePaymentGateway;

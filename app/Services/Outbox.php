@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Models\OutboxMessage;
 
-class Outbox
+final class Outbox
 {
     public function record(string $subject, string $type, string $aggregateId, array $payload): OutboxMessage
     {
