@@ -3,6 +3,7 @@
 use App\Messaging\MessageBus;
 use App\Models\OutboxMessage;
 use App\Models\Product;
+use App\Services\Outbox;
 use Illuminate\Testing\TestResponse;
 use Tests\Fakes\FakeMessageBus;
 
@@ -75,8 +76,71 @@ it('если брокер недоступен, сообщение остает�
 
     // брокер поднялся - следующий запуск доставит письмо
     $this->bus->shouldFail = false;
+    $this->travel(3)->seconds();
     $this->artisan('outbox:publish --once')->assertSuccessful();
 
     expect($this->bus->published)->toHaveCount(1)
         ->and($message->refresh()->published_at)->not->toBeNull();
+});
+
+it('после ошибки письмо ждёт паузу и не отправляется сразу повторно', function () {
+    app(Outbox::class)->record('payments.charge', 'ChargePayment', 'order-1', ['order_uuid' => 'order-1']);
+    $this->bus->shouldFail = true;
+
+    $this->artisan('outbox:publish --once')->assertSuccessful();
+    $this->artisan('outbox:publish --once')->assertSuccessful();
+
+    $message = OutboxMessage::first();
+
+    // второй запуск не тронул письмо: оно на паузе после первой ошибки
+    expect($message->attempts)->toBe(1)
+        ->and($message->next_attempt_at->isFuture())->toBeTrue()
+        ->and($message->published_at)->toBeNull();
+});
+
+it('отравленное письмо не блокирует остальные', function () {
+    $outbox = app(Outbox::class);
+
+    // первое письмо - на «сломанный» subject, оно не отправится никогда
+    $poison = $outbox->record('payments.broken', 'Broken', 'order-1', []);
+    // второе создаём на секунду позже, чтобы оно гарантированно стояло в очереди за первым
+    $this->travel(1)->seconds();
+    $normal = $outbox->record('payments.charge', 'ChargePayment', 'order-2', ['order_uuid' => 'order-2']);
+
+    $this->bus->failSubjects = ['payments.broken'];
+
+    // 1-й запуск: первое письмо падает, пачка останавливается (break) - второе ещё не ушло
+    $this->artisan('outbox:publish --once')->assertSuccessful();
+    expect($normal->refresh()->published_at)->toBeNull();
+
+    // 2-й запуск: первое письмо на паузе и пропускается, второе уходит
+    $this->artisan('outbox:publish --once')->assertSuccessful();
+
+    expect($normal->refresh()->published_at)->not->toBeNull()
+        ->and($poison->refresh()->published_at)->toBeNull()
+        ->and($this->bus->published)->toHaveCount(1)
+        ->and($this->bus->published[0]['subject'])->toBe('payments.charge');
+});
+
+it('после исчерпания попыток письмо помечается failed_at', function () {
+    $message = app(Outbox::class)->record('payments.charge', 'ChargePayment', 'order-1', []);
+    $message->update(['attempts' => 9]);
+    $this->bus->shouldFail = true;
+
+    $this->artisan('outbox:publish --once')->assertSuccessful();
+
+    $message->refresh();
+    expect($message->attempts)->toBe(10)
+        ->and($message->failed_at)->not->toBeNull()
+        ->and($message->published_at)->toBeNull();
+});
+
+it('письмо с failed_at больше не берётся автоматически', function () {
+    $message = app(Outbox::class)->record('payments.charge', 'ChargePayment', 'order-1', []);
+    $message->update(['failed_at' => now()]);
+
+    $this->artisan('outbox:publish --once')->assertSuccessful();
+
+    expect($this->bus->published)->toBeEmpty()
+        ->and($message->refresh()->published_at)->toBeNull();
 });

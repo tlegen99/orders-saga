@@ -29,6 +29,8 @@ class OutboxMessage extends Model
         'attempts',
         'last_error',
         'published_at',
+        'next_attempt_at',
+        'failed_at',
     ];
 
     /**
@@ -41,6 +43,8 @@ class OutboxMessage extends Model
             'headers' => 'array',
             'published_at' => 'datetime',
             'attempts' => 'integer',
+            'next_attempt_at' => 'datetime',
+            'failed_at' => 'datetime',
         ];
     }
 

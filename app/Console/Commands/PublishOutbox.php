@@ -6,9 +6,13 @@ use App\Messaging\MessageBus;
 use App\Models\OutboxMessage;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PublishOutbox extends Command
 {
+    private const MAX_ATTEMPTS = 10;
+    private const MAX_BACKOFF_SECONDS = 300;
+
     protected $signature = 'outbox:publish {--once}';
 
     protected $description = 'Публикует сообщения из outbox в брокер';
@@ -39,7 +43,12 @@ class PublishOutbox extends Command
     {
         return DB::transaction(function () use ($bus) {
             $messages = OutboxMessage::whereNull('published_at')
+                ->whereNull('failed_at')
+                ->where(function ($q) {
+                    $q->whereNull('next_attempt_at')->orWhere('next_attempt_at', '<=', now());
+                })
                 ->orderBy('created_at')
+                ->orderBy('id') // если created_at совпали то поможет еще по одному полю
                 ->limit(50)
                 ->lock('FOR UPDATE SKIP LOCKED')
                 ->get();
@@ -57,6 +66,18 @@ class PublishOutbox extends Command
                 } catch (\Throwable $e) {
                     $message->attempts++;
                     $message->last_error = $e->getMessage();
+                    if ($message->attempts >= self::MAX_ATTEMPTS) {
+                        $message->failed_at = now();
+                        Log::error('Не удалось опубликовать сообщение из Outbox после исчерпания попыток', [
+                            'message_id' => $message->id,
+                            'subject' => $message->subject,
+                            'error' => $e->getMessage(),
+                        ]);
+                    } else {
+                        $pause = min(2 ** $message->attempts, self::MAX_BACKOFF_SECONDS);
+                        $message->next_attempt_at = now()->addSeconds($pause);
+                    }
+
                     $message->save();
                     report($e);
                     break;
