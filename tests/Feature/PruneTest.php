@@ -2,6 +2,8 @@
 
 use App\Models\IdempotencyKey;
 use App\Models\OutboxMessage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 it('удаление просроченного ключа в idempotency_keys', function () {
     DB::table('idempotency_keys')->insert([
@@ -47,4 +49,19 @@ it('удаление просроченного письма в outbox_messages'
 
     expect(OutboxMessage::where('id', '01a1bfe2-e625-72e7-9341-c52d5b2adee5')->count())->toBe(0)
         ->and(OutboxMessage::where('id', '01a1bfe2-e625-72e7-9341-c52d5b2adee6')->count())->toBe(1);
+});
+
+it('удаление отметок processed_messages старше 30 дней', function () {
+    $oldId = (string) Str::uuid();
+    $freshId = (string) Str::uuid();
+
+    DB::table('processed_messages')->insert([
+        ['consumer' => 'payments', 'message_id' => $oldId, 'processed_at' => now()->subDays(31)],
+        ['consumer' => 'payments', 'message_id' => $freshId, 'processed_at' => now()->subDays(29)],
+    ]);
+
+    $this->artisan('model:prune');
+
+    expect(DB::table('processed_messages')->where('message_id', $oldId)->exists())->toBeFalse()
+        ->and(DB::table('processed_messages')->where('message_id', $freshId)->exists())->toBeTrue();
 });
